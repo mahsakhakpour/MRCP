@@ -1,4 +1,3 @@
-# MRCP
 # Maximum Range Count Problem (MRCP)
 
 ## Getting Started with MRCP Solver
