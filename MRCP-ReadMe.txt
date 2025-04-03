@@ -1,4 +1,4 @@
-# Maximum Range Count Problem (MRCP) Solver
+# Maximum Range Count Problem (MRCP)
 
 ## Getting Started with MRCP Solver
 This Python project implements algorithms to solve the "Maximum Range Count" problem, which involves finding the optimal placement of a circle with a given radius to cover the maximum number of points from a 2D dataset.
