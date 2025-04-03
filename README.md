@@ -1,6 +1,6 @@
 # Maximum Range Count Problem (MRCP)
 
-## Getting Started with MRCP Solver
+## Getting Started
 This Python project implements algorithms to solve the "Maximum Range Count" problem, which involves finding the optimal placement of a circle with a given radius to cover the maximum number of points from a 2D dataset.
 
 ### Prerequisites
@@ -17,7 +17,7 @@ Install dependencies:
 pip install numpy matplotlib scikit-learn
 
 
-Usage
+### Usage
 
 Run the MRCP solver in interactive mode:
 
@@ -34,10 +34,7 @@ Ask for the query circle radius
 Display analysis results with an interactive visualization
 
 
-Example Execution
-
-*** Maximum Range Count Problem ***
-** Mahsa Khakpour **
+### Example Execution
 
 Enter your 2D points (x,y). Type 'done' when finished:
 Enter point (format: x,y): 1.0,2.0
@@ -48,7 +45,7 @@ Enter maximum cluster distance (eps): 5
 Enter minimum points per cluster: 3
 Enter query circle radius: 5
 
-Output
+### Output
 
 Console output with detailed metrics
 
@@ -59,9 +56,7 @@ Optimal circle placement
 Performance comparisons
 Interactive Matplotlib window
 
-License
-MIT License
 
-Author
+## Author
 Mahsa Khakpour
 mahsa54@gmail.com
