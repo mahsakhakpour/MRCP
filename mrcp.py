@@ -5,10 +5,8 @@ from matplotlib.patches import Circle
 import time
 
 def get_user_input():
-    """Get all required inputs from the user with validation"""
     print("\n*** Maximum Range Count Problem *** \n ** Mahsa Khakpour **")
-    
-    # Get dataset
+
     points = []
     print("\nEnter your 2D points (x,y). Type 'done' when finished:")
     while True:
@@ -24,8 +22,7 @@ def get_user_input():
             print(f"Added point ({x:.2f}, {y:.2f}) | Total points: {len(points)}")
         except ValueError:
             print("Invalid format! Please enter as 'x,y' (e.g., '1.0,2.0')")
-    
-    # Get parameters with validation
+
     while True:
         try:
             eps = float(input("\nEnter maximum cluster distance (eps): "))
@@ -36,52 +33,42 @@ def get_user_input():
             print("All values must be positive numbers!")
         except ValueError:
             print("Please enter valid numbers!")
-    
+
     return np.array(points), eps, min_samples, radius
 
-def sliding_circle_algorithm(points, radius):
-    """Improved sliding circle algorithm with multi-start strategy"""
-    if len(points) == 0:
+def sliding_circle_algorithm(points, radius, cluster_points):
+    if len(cluster_points) == 0:
         return None, 0
-    
+
     best_center = None
     max_count = 0
     
-    # Try starting from each point to ensure coverage
-    for start_point in points:
+    for start_point in cluster_points:
         current_center = start_point.copy()
-        scanned = np.zeros(len(points), dtype=bool)
+        scanned = np.zeros(len(cluster_points), dtype=bool)
         local_max = 0
         local_best = None
         
-        for _ in range(100):  # Max iterations per start point
-            # Find points in current circle
-            distances = np.linalg.norm(points - current_center, axis=1)
+        for _ in range(100):
+            distances = np.linalg.norm(cluster_points - current_center, axis=1)
             in_circle = distances <= radius
-            
-            # Count unscanned points
             new_points = in_circle & ~scanned
             current_count = np.sum(new_points)
             
-            # Update local best
             if current_count > local_max:
                 local_max = current_count
                 local_best = current_center.copy()
             
-            # Mark points as scanned
             scanned[in_circle] = True
-            
-            # Find nearest unscanned point
             unscanned_indices = np.where(~scanned)[0]
             if len(unscanned_indices) == 0:
                 break
-                
-            unscanned_points = points[unscanned_indices]
+            
+            unscanned_points = cluster_points[unscanned_indices]
             dist_to_unscanned = np.linalg.norm(unscanned_points - current_center, axis=1)
             nearest_idx = np.argmin(dist_to_unscanned)
             nearest_point = unscanned_points[nearest_idx]
             
-            # Move with adaptive step size
             direction = nearest_point - current_center
             step_size = min(radius/4, np.linalg.norm(direction))
             if step_size > 0:
@@ -89,178 +76,149 @@ def sliding_circle_algorithm(points, radius):
             else:
                 break
         
-        # Update global best
         if local_max > max_count:
             max_count = local_max
             best_center = local_best
-    
+
     return best_center, max_count
 
-def brute_force_algorithm(points, radius, resolution=0.05):
-    """High-accuracy brute-force validation"""
-    if len(points) == 0:
+def brute_force_algorithm(points, radius, cluster_points, resolution=0.05):
+    if len(cluster_points) == 0:
         return None, 0
     
-    # Create expanded search space
     padding = radius * 1.5
-    x_min, y_min = np.min(points, axis=0) - padding
-    x_max, y_max = np.max(points, axis=0) + padding
+    x_min, y_min = np.min(cluster_points, axis=0) - padding
+    x_max, y_max = np.max(cluster_points, axis=0) + padding
     step = radius * resolution
-    
+
     best_center = None
     max_count = 0
     
-    # Vectorized grid evaluation
     x_grid = np.arange(x_min, x_max + step, step)
     y_grid = np.arange(y_min, y_max + step, step)
     
     for x in x_grid:
         for y in y_grid:
             center = np.array([x, y])
-            distances = np.linalg.norm(points - center, axis=1)
+            distances = np.linalg.norm(cluster_points - center, axis=1)
             count = np.sum(distances <= radius)
-            
             if count > max_count:
                 max_count = count
                 best_center = center
-    
+
     return best_center, max_count
 
-def visualize_results(points, labels, sliding_results, brute_results, radius):
-    """Enhanced visualization with clear optimal circles"""
+def visualize_results(points, labels, sliding_results, brute_results, radius, title):
     plt.figure(figsize=(14, 10))
-    
-    # Plot clusters
     clusters = set(labels) - {-1}
     colors = plt.cm.tab20(np.linspace(0, 1, len(clusters))) if clusters else ['blue']
+
+    # First count points in each cluster
+    cluster_counts = {}
+    for cluster_id in clusters:
+        cluster_counts[cluster_id] = np.sum(labels == cluster_id)
+    
     for i, cluster_id in enumerate(clusters):
         cluster_points = points[labels == cluster_id]
         plt.scatter(cluster_points[:, 0], cluster_points[:, 1],
-                   color=colors[i], label=f'Cluster {cluster_id}', alpha=0.7, s=50)
-    
-    # Plot noise points if any
+                    color=colors[i], 
+                    label=f'Cluster ({cluster_counts[cluster_id]} pts)', 
+                    alpha=0.7, s=80)
+
     if -1 in labels:
         noise_points = points[labels == -1]
+        noise_count = len(noise_points)
         plt.scatter(noise_points[:, 0], noise_points[:, 1],
-                   c='gray', marker='x', label='Noise', alpha=0.5)
+                    c='gray', marker='x', 
+                    label=f'Noise ({noise_count} pts)', 
+                    alpha=0.5)
 
-    # ===== SLIDING CIRCLE RESULTS =====
-    if sliding_results:
-        best_slide = max(sliding_results, key=lambda x: x[2])
-        
-        # Optimal sliding circle (thick red)
-        plt.gca().add_patch(Circle(best_slide[1], radius,
-                           fill=False, color='red', linewidth=3,
-                           label=f'Sliding Optimal: {best_slide[2]} pts'))
-        plt.text(best_slide[1][0], best_slide[1][1], 
-                f'SLIDE: {best_slide[2]}', ha='center', va='center',
-                color='red', fontsize=10, weight='bold')
-        
-        # Other sliding circles (thin blue)
-        for res in sliding_results:
-            if res[2] != best_slide[2]:
-                plt.gca().add_patch(Circle(res[1], radius,
-                                         fill=False, color='blue', linewidth=1,
-                                         linestyle=':', alpha=0.4))
-                plt.text(res[1][0], res[1][1], str(res[2]),
-                        ha='center', va='center', color='blue', fontsize=8)
+    # Draw sliding circles (red)
+    best_sliding = max(sliding_results, key=lambda x: x[2], default=None)
+    for cid, center, count in sliding_results:
+        if (cid, center, count) != best_sliding:
+            plt.gca().add_patch(Circle(center, radius, fill=False, color='red',
+                                     linewidth=2, linestyle='-'))
+            plt.text(center[0], center[1], f'S{count}', color='red', ha='center')
 
-    # ===== BRUTE-FORCE RESULTS =====
-    if brute_results:
-        best_brute = max(brute_results, key=lambda x: x[2])
-        
-        # Optimal brute circle (thick green)
-        plt.gca().add_patch(Circle(best_brute[1], radius,
-                           fill=False, color='green', linewidth=2,
-                           linestyle='--', alpha=0.8,
-                           label=f'Brute Optimal: {best_brute[2]} pts'))
-        plt.text(best_brute[1][0], best_brute[1][1], 
-                f'BRUTE: {best_brute[2]}', ha='center', va='center',
-                color='green', fontsize=10, weight='bold')
-        
-        # Other brute circles (thin green)
-        for res in brute_results:
-            if res[2] != best_brute[2]:
-                plt.gca().add_patch(Circle(res[1], radius,
-                                         fill=False, color='green', linewidth=0.5,
-                                         linestyle='--', alpha=0.3))
+    # Draw brute force circles (green)
+    best_brute = max(brute_results, key=lambda x: x[2], default=None)
+    for cid, center, count in brute_results:
+        if (cid, center, count) != best_brute:
+            plt.gca().add_patch(Circle(center, radius, fill=False, color='green',
+                                     linewidth=2, linestyle='--'))
+            plt.text(center[0], center[1], f'B{count}', color='green', ha='center')
 
-    plt.title('Optimal Circle Placement Comparison\n(Red: Sliding Algorithm, Green: Brute-Force)',
-             fontsize=12, pad=20)
-    plt.xlabel('X coordinate', fontsize=10)
-    plt.ylabel('Y coordinate', fontsize=10)
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=9)
-    plt.grid(True, alpha=0.2)
+    # Draw optimal brute (dashed black)
+    if best_brute:
+        _, center, count = best_brute
+        plt.gca().add_patch(Circle(center, radius, fill=False, color='black',
+                                 linewidth=3, linestyle='--', label=f'Brute Optimal ({count} pts)'))
+        plt.text(center[0], center[1], f'★{count}', color='black', fontsize=12, ha='center')
+
+    # Draw optimal sliding (solid black)
+    if best_sliding:
+        _, center, count = best_sliding
+        plt.gca().add_patch(Circle(center, radius, fill=False, color='black',
+                                 linewidth=3, linestyle='-', label=f'Sliding Optimal ({count} pts)'))
+        plt.text(center[0], center[1], f'★{count}', color='black', fontsize=12, ha='center', va='bottom')
+
+    plt.title(title)
+    plt.xlabel('X coordinate')
+    plt.ylabel('Y coordinate')
     plt.axis('equal')
+    plt.grid(True)
+    
+    # Get existing handles and labels
+    handles, labels = plt.gca().get_legend_handles_labels()
+    
+    # Filter out any duplicate labels
+    unique_labels = []
+    unique_handles = []
+    for handle, label in zip(handles, labels):
+        if label not in unique_labels:
+            unique_labels.append(label)
+            unique_handles.append(handle)
+    
+    plt.legend(handles=unique_handles, labels=unique_labels, bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
     plt.show()
 
+def run_algorithm(name, func, points, radius, cluster_points):
+    results = []
+    total_time = 0
+    for cid, cpoints in cluster_points.items():
+        if len(cpoints) < 2:
+            continue
+        start = time.time()
+        center, count = func(points, radius, cpoints)
+        duration = time.time() - start
+        total_time += duration
+        results.append((cid, center, count))
+        print(f"  {name} - Cluster {cid}: {count} points at ({center[0]:.1f}, {center[1]:.1f}) in {duration:.4f} sec")
+    return results, total_time
+
 def main():
-    # Get user input
     points, eps, min_samples, radius = get_user_input()
-    
-    # DBSCAN Clustering
     print("\nRunning DBSCAN clustering...")
-    start_time = time.time()
     clustering = DBSCAN(eps=eps, min_samples=min_samples).fit(points)
     labels = clustering.labels_
-    cluster_time = time.time() - start_time
-    
-    # Cluster analysis
-    n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-    n_noise = np.sum(labels == -1)
-    print(f"  Clusters found: {n_clusters}")
-    print(f"  Noise points: {n_noise} ({n_noise/len(points)*100:.1f}%)")
-    print(f"  Clustering time: {cluster_time:.2f} seconds")
-
-    # Process each cluster
-    sliding_results = []
-    brute_results = []
     clusters = set(labels) - {-1}
-    
+    cluster_points = {cid: points[labels == cid] for cid in clusters}
     if not clusters:
-        print("\nNo clusters found - processing all points as one group")
-        clusters = {-2}
-        cluster_points = { -2: points }
-    else:
-        cluster_points = { cid: points[labels == cid] for cid in clusters }
+        cluster_points = {-1: points}
 
-    print("\nProcessing clusters...")
-    for cid in clusters:
-        cpoints = cluster_points[cid]
-        print(f"\nCluster {cid if cid != -2 else 'All Points'}: {len(cpoints)} points")
-        
-        # Sliding Circle Algorithm
-        start = time.time()
-        s_center, s_count = sliding_circle_algorithm(cpoints, radius)
-        s_time = time.time() - start
-        if s_center is not None:
-            sliding_results.append((cid, s_center, s_count))
-            print(f"  Sliding Circle: {s_count} points at ({s_center[0]:.1f}, {s_center[1]:.1f})")
-            print(f"  Time: {s_time:.2f} seconds")
-        
-        # Brute Force Algorithm
-        start = time.time()
-        b_center, b_count = brute_force_algorithm(cpoints, radius)
-        b_time = time.time() - start
-        if b_center is not None:
-            brute_results.append((cid, b_center, b_count))
-            print(f"  Brute Force: {b_count} points at ({b_center[0]:.1f}, {b_center[1]:.1f})")
-            print(f"  Time: {b_time:.2f} seconds")
-        
-        # Compare results
-        if s_center is not None and b_center is not None:
-            diff = abs(s_count - b_count)
-            if diff == 0:
-                print("  ✅ Results match perfectly")
-            elif diff <= 2:
-                print(f"  ⚠️ Minor difference: {diff} points")
-            else:
-                print(f"  ❗ Significant difference: {diff} points")
+    print("\n🔴 Running Sliding Circle Algorithm...")
+    sliding_results, sliding_time = run_algorithm("Sliding", sliding_circle_algorithm, points, radius, cluster_points)
 
-    # Visualize results
-    print("\nGenerating visualization...")
-    visualize_results(points, labels, sliding_results, brute_results, radius)
+    print("\n🟢 Running Brute Force Algorithm...")
+    brute_results, brute_time = run_algorithm("Brute", brute_force_algorithm, points, radius, cluster_points)
+
+    print("\n⏱ Timing Summary:")
+    print(f"  🔴 Sliding Circle: {sliding_time:.4f} seconds")
+    print(f"  🟢 Brute Force   : {brute_time:.4f} seconds")
+
+    visualize_results(points, labels, sliding_results, brute_results, radius, "Sliding vs. Brute Force – Max Circle Coverage")
 
 if __name__ == "__main__":
     main()
