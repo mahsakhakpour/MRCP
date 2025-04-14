@@ -33,6 +33,8 @@ Ask for the query circle radius
 
 Display analysis results with an interactive visualization
 
+The execution will visualize each of the four steps (raw data, clustering, Sliding-Circle algorithm, and comparison with Brute-Force algorithm) in an interactive Matplotlib window, with each step displayed for 3 seconds.
+
 
 ### Example Execution
 
